@@ -40,6 +40,12 @@ struct AsyncButton<Label>: View where Label: View {
                 do {
                     try await self.action()
                 } catch let error as NSError {
+                    // A pending purchase (Ask to Buy, UPI mandate approval) is not a
+                    // failure the user can act on here: StoreKit completes it later and
+                    // `Transaction.updates` delivers it. The error still reaches
+                    // `onPurchaseFailure`, so the app can show its own guidance instead
+                    // of a generic error alert.
+                    guard !error.isPaymentPending else { return }
                     self.error = error
                 }
             }
@@ -47,6 +53,15 @@ struct AsyncButton<Label>: View where Label: View {
             self.label
         }
         .displayError(self.$error)
+    }
+
+}
+
+private extension NSError {
+
+    var isPaymentPending: Bool {
+        return self.domain == ErrorCode.errorDomain
+            && self.code == ErrorCode.paymentPendingError.rawValue
     }
 
 }
